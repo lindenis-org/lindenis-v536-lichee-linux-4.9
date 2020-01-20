@@ -1,0 +1,11 @@
+#
+#  Touchscreen driver configuration
+#
+config  INPUT_TOUCHSCREEN_GT911
+       tristate  "gt911 touchscreen driver"      
+       depends on INPUT && I2C
+       select INPUT_SENSORINIT
+       default m
+       help
+         gt911 touchscreen driver    
+         

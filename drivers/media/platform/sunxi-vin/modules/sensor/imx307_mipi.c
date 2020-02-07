@@ -785,7 +785,7 @@ static struct sensor_win_size sensor_win_sizes[] = {
 
 /* 1080P dol */
 	 /* 1080P */
-	/*{
+	{
 	 .width = 1920,
 	 .height = 1080,
 	 .hoffset = 0,
@@ -807,8 +807,8 @@ static struct sensor_win_size sensor_win_sizes[] = {
 	 .vipp_voff = 0,
 	 .top_clk = 300000000,
 	 .isp_clk = 300000000,
-	 },*/
-	 {
+	 },
+ /*	 {
 	 .width = 1920,
 	 .height = 1080,
 	 .hoffset = 0,
@@ -832,7 +832,7 @@ static struct sensor_win_size sensor_win_sizes[] = {
 	 .vipp_voff = 0,
 	 .top_clk = 500000000,
 	 .isp_clk = 500000000,
-	 },
+	 },*/
 #endif
 
 #if 0

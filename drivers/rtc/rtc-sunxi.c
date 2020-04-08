@@ -282,6 +282,24 @@ static int sunxi_rtc_gettime(struct device *dev, struct rtc_time *rtc_tm)
 	return rtc_valid_tm(rtc_tm);
 }
 
+static int sunxi_rtc_wait(struct sunxi_rtc_dev *chip, int offset,
+			  unsigned int mask, unsigned int ms_timeout)
+{
+	const unsigned long timeout = jiffies + msecs_to_jiffies(ms_timeout);
+	u32 reg;
+
+	do {
+		reg = readl(chip->base + offset);
+		reg &= mask;
+
+		if (reg != mask)
+			return 0;
+
+	} while (time_before(jiffies, timeout));
+
+	return -ETIMEDOUT;
+}
+
 static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 {
 	struct sunxi_rtc_dev *chip = dev_get_drvdata(dev);
@@ -296,7 +314,6 @@ static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	unsigned long time_gap_min = 0;
 #endif
 	int ret;
-
 	ret = sunxi_rtc_gettime(dev, &tm_now);
 	if (ret < 0) {
 		dev_err(dev, "Error in getting time\n");
@@ -318,16 +335,60 @@ static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	time_gap_day = alrm_tm->tm_mday - tm_now.tm_mday;
 #ifdef SUNXI_SIMPLIFIED_TIMER
 	sunxi_rtc_setaie(0, chip);
+
+#ifdef CONFIG_ARCH_SUN8IW16
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_ALARM_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc alarm1.\n");
+		return -1;
+	}
+#endif
 	writel(0, chip->base + SUNXI_ALRM_DAY);
+
+#ifdef CONFIG_ARCH_SUN8IW16
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_ALARM_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc alarm1.\n");
+		return -1;
+	}
+	msleep(2);
+#endif
+
 	writel(0, chip->base + SUNXI_ALRM_HMS);
 
+#ifdef CONFIG_ARCH_SUN8IW16
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_ALARM_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc alarm1.\n");
+		return -1;
+	}
+	msleep(2);
+#endif
 	writel(time_gap_day + readl(chip->base + SUNXI_RTC_YMD),
 					chip->base + SUNXI_ALRM_DAY);
 
 	alrm = SUNXI_ALRM_SET_SEC_VALUE(alrm_tm->tm_sec) |
 		SUNXI_ALRM_SET_MIN_VALUE(alrm_tm->tm_min) |
 		SUNXI_ALRM_SET_HOUR_VALUE(alrm_tm->tm_hour);
+
+#ifdef CONFIG_ARCH_SUN8IW16
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_ALARM_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc alarm1.\n");
+		return -1;
+	}
+	msleep(2);
+#endif
 	writel(alrm, chip->base + SUNXI_ALRM_HMS);
+
+#ifdef CONFIG_ARCH_SUN8IW16
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_ALARM_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc alarm1.\n");
+		return -1;
+	}
+	msleep(2);
+#endif
 
 #else
 #ifdef SUNXI_ALARM1_USED
@@ -336,17 +397,24 @@ static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	time_gap -= time_gap_hour * SEC_IN_HOUR;
 	time_gap_min = time_gap / SEC_IN_MIN;
 	time_gap -= time_gap_min * SEC_IN_MIN;
-#endif
+#endif /* end of SUNXI_ALARM1_USED */
 
 	sunxi_rtc_setaie(0, chip);
 #ifdef SUNXI_ALARM1_USED
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_ALARM_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc alarm1.\n");
+		return -1;
+	}
+	msleep(2);
+
 	writel(0, chip->base + SUNXI_ALRM_DHMS);
 	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
 				SUNXI_LOSC_CTRL_RTC_ALARM_ACC, 50)) {
 		dev_err(dev, "Failed to set rtc alarm1.\n");
 		return -1;
 	}
-	usleep_range(100, 200);
+	msleep(2);
 
 	alrm = SUNXI_ALRM_SET_SEC_VALUE(time_gap) |
 		SUNXI_ALRM_SET_MIN_VALUE(time_gap_min) |
@@ -358,16 +426,16 @@ static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 		dev_err(dev, "Failed to set rtc alarm1.\n");
 		return -1;
 	}
-	usleep_range(100, 200);
+	msleep(2);
 #else
 	writel(0, chip->base + SUNXI_ALRM_COUNTER);
 	alrm = time_gap;
 
 	dev_dbg(dev, "set alarm seconds:%d enable:%d\n", alrm, wkalrm->enabled);
 	writel(alrm, chip->base + SUNXI_ALRM_COUNTER);
-#endif
+#endif /* end of SUNXI_ALARM1_USED */
 
-#endif
+#endif /* end of SUNXI_SIMPLIFIED_TIMER */
 
 	writel(0, chip->base + SUNXI_ALRM_IRQ_EN);
 	writel(SUNXI_ALRM_IRQ_EN_CNT_IRQ_EN, chip->base + SUNXI_ALRM_IRQ_EN);
@@ -377,23 +445,6 @@ static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	return 0;
 }
 
-static int sunxi_rtc_wait(struct sunxi_rtc_dev *chip, int offset,
-			  unsigned int mask, unsigned int ms_timeout)
-{
-	const unsigned long timeout = jiffies + msecs_to_jiffies(ms_timeout);
-	u32 reg;
-
-	do {
-		reg = readl(chip->base + offset);
-		reg &= mask;
-
-		if (reg == mask)
-			return 0;
-
-	} while (time_before(jiffies, timeout));
-
-	return -ETIMEDOUT;
-}
 
 static int sunxi_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
 {
@@ -404,7 +455,6 @@ static int sunxi_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
 #ifdef SUNXI_SIMPLIFIED_TIMER
 	int i, leap;
 #endif
-
 	/*
 	 * the input rtc_tm->tm_year is the offset relative to 1900. We use
 	 * the SUNXI_YEAR_OFF macro to rebase it with respect to the min year
@@ -452,6 +502,22 @@ static int sunxi_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
 		SUNXI_TIME_SET_MIN_VALUE(rtc_tm->tm_min)  |
 		SUNXI_TIME_SET_HOUR_VALUE(rtc_tm->tm_hour);
 
+
+	/*
+	 * before we write the RTC HH-MM-SS register,we
+	 * should check the SUNXI_LOSC_CTRL_RTC_HMS_ACC bit
+	 */
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_HMS_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc time.\n");
+		return -1;
+	}
+
+	/*
+	 * we must wait at least 2ms to make sure the bit clear really.
+	 */
+	msleep(2);
+
 	writel(0, chip->base + SUNXI_RTC_HMS);
 	/*
 	 * After writing the RTC HH-MM-SS register, the
@@ -465,7 +531,7 @@ static int sunxi_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
 		return -1;
 	}
 
-	usleep_range(100, 200);
+	msleep(2);
 	writel(time, chip->base + SUNXI_RTC_HMS);
 
 	/*
@@ -479,6 +545,20 @@ static int sunxi_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
 		dev_err(dev, "Failed to set rtc time.\n");
 		return -1;
 	}
+	msleep(2);
+
+	/*
+	 * After writing the RTC YY-MM-DD register, the
+	 * SUNXI_LOSC_CTRL_RTC_YMD_ACC bit is set and it will not
+	 * be cleared until the real writing operation is finished
+	 */
+
+	if (sunxi_rtc_wait(chip, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_YMD_ACC, 50)) {
+		dev_err(dev, "Failed to set rtc time.\n");
+		return -1;
+	}
+	msleep(2);
 
 	writel(date, chip->base + SUNXI_RTC_YMD);
 
@@ -493,7 +573,7 @@ static int sunxi_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
 		dev_err(dev, "Failed to set rtc time.\n");
 		return -1;
 	}
-	usleep_range(100, 200);
+	msleep(2);
 
 	return 0;
 }

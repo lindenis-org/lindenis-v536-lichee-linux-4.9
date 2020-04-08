@@ -3554,8 +3554,11 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		unsigned int i = 0;
 		const unsigned int lyr_cfg_size = ARRAY_SIZE(lyr_cfg);
 
+		mutex_lock(&g_disp_drv.mlock);
+
 		if (ubuffer[2] > lyr_cfg_size) {
 			__wrn("Total layer number is %d\n", lyr_cfg_size);
+			mutex_unlock(&g_disp_drv.mlock);
 			return -EFAULT;
 		}
 
@@ -3578,6 +3581,7 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (mgr && mgr->set_layer_config)
 			ret = mgr->set_layer_config(mgr, lyr_cfg, ubuffer[2]);
 #endif
+		mutex_unlock(&g_disp_drv.mlock);
 		break;
 	}
 
@@ -3587,6 +3591,7 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			(void __user *)ubuffer[1],
 			sizeof(struct disp_layer_config) * ubuffer[2]))	{
 			__wrn("copy_from_user fail\n");
+			mutex_unlock(&g_disp_drv.mlock);
 
 			return  -EFAULT;
 		}

@@ -3298,15 +3298,21 @@ static int vin_subdev_s_stream(struct v4l2_subdev *sd, int enable)
 		/*csic_dma_line_cnt(vinc->vipp_sel, cap->frame.o_height / 16 * 12);*/
 		csic_frame_cnt_enable(vinc->vipp_sel);
 
-		csic_dma_top_enable(vinc->vipp_sel);
+#ifndef BUF_AUTO_UPDATE
 		vin_set_next_buf_addr(vinc);
+		csic_dma_top_enable(vinc->vipp_sel);
 
 		csic_dma_int_clear_status(vinc->vipp_sel, DMA_INT_ALL);
-#ifndef BUF_AUTO_UPDATE
+
 		csic_dma_int_enable(vinc->vipp_sel, DMA_INT_BUF_0_OVERFLOW | DMA_INT_BUF_1_OVERFLOW |
 			DMA_INT_BUF_2_OVERFLOW | DMA_INT_HBLANK_OVERFLOW | DMA_INT_VSYNC_TRIG |
 			DMA_INT_CAPTURE_DONE | DMA_INT_FRAME_DONE);
 #else
+		csic_dma_top_enable(vinc->vipp_sel);
+		vin_set_next_buf_addr(vinc);
+
+		csic_dma_int_clear_status(vinc->vipp_sel, DMA_INT_ALL);
+
 		csic_dma_int_enable(vinc->vipp_sel, DMA_INT_BUF_0_OVERFLOW | DMA_INT_BUF_1_OVERFLOW |
 			DMA_INT_BUF_2_OVERFLOW | DMA_INT_HBLANK_OVERFLOW | DMA_INT_VSYNC_TRIG |
 			DMA_INT_CAPTURE_DONE | DMA_INT_STORED_FRM_CNT | DMA_INT_FRM_LOST);

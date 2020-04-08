@@ -792,10 +792,10 @@ static int sunxi_fb_pan_display(struct fb_var_screeninfo *var,
 			}
 		}
 	}
-
+#if 0
 	if (need_wait_vsync == 1)
 		fb_wait_for_vsync(info);
-
+#endif
 	return 0;
 }
 
